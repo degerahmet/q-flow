@@ -7,24 +7,39 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @ApiOperation({ summary: 'Health check endpoint' })
+  @ApiOperation({
+    summary: 'Health check endpoint for Prisma client and pgvector extension.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns a greeting message to confirm the API is running',
+    description: 'Returns a simple health check message from the database.',
     schema: {
-      type: 'string',
-      example: 'Hello World!',
+      type: 'object',
+      example: {
+        ok: true,
+        db: 'up',
+        pgvector: 'enabled',
+        ts: '2024-01-01T00:00:00.000Z',
+      },
     },
   })
   @Get()
   async health() {
     // Check database connection
-    await this.prisma.$queryRaw`SELECT 1`;
+    const dbHealthy = await this.prisma.healthCheck();
+    if (!dbHealthy) {
+      return {
+        ok: false,
+        db: 'down',
+        message: 'Database connection failed after 15 seconds timeout.',
+        ts: new Date().toISOString(),
+      };
+    }
 
     // Check for pgvector extension
-    const vector = await this.prisma.$queryRaw<
-      Array<{ extname: string }>
-    >`SELECT extname FROM pg_extension WHERE extname = 'vector'`;
+    const vector = await this.prisma.$queryRaw<Array<{ extname: string }>>`
+      SELECT extname FROM pg_extension WHERE extname = 'vector'
+    `;
 
     return {
       ok: true,
