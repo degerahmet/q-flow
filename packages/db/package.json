@@ -1,24 +1,28 @@
 {
   "name": "@qflow/db",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
+    "build": "tsup src/index.ts --dts",
+    "dev": "tsup src/index.ts --dts --watch",
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "studio": "prisma studio"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "prisma": "^7.1.0"
-  },
   "dependencies": {
     "@prisma/client": "^7.1.0"
+  },
+  "devDependencies": {
+    "prisma": "^7",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   }
 }
