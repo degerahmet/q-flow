@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProjectStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum QuestionItemStatus {
+  PENDING
+  REVIEWED
+  FAILED
+}
+
+model User {
+  id            String           @id @default(uuid())
+  username      String           @unique
+  passwordHash  String           @map("password_hash")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  projects      Project[]
+  documents     Document[]
+
+  @@index([username])
+  @@map("users")
+}
+
+model Project {
+  id               String           @id @default(uuid())
+  userId           String           @map("user_id")
+  status           ProjectStatus    @default(QUEUED)
+  originalFilePath String           @map("original_file_path")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionItems    QuestionItem[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model QuestionItem {
+  id              String            @id @default(uuid())
+  projectId       String            @map("project_id")
+  rowIndex        Int               @map("row_index")
+  questionText    String            @map("question_text")
+  aiAnswer        String?           @map("ai_answer")
+  humanAnswer     String?           @map("human_answer")
+  confidenceScore Float?            @map("confidence_score")
+  status          QuestionItemStatus @default(PENDING)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+  @@map("question_items")
+}
+
+model Document {
+  id          String      @id @default(uuid())
+  userId      String      @map("user_id")
+  filename    String
+  contentHash String      @map("content_hash")
+  uploadDate  DateTime    @default(now()) @map("upload_date")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  embeddings  Embedding[]
+
+  @@unique([userId, contentHash])
+  @@index([userId])
+  @@map("documents")
+}
+
+model Embedding {
+  id           String   @id @default(uuid())
+  documentId   String   @map("document_id")
+  chunkContent String   @map("chunk_content")
+  vector       Unsupported("vector(1536)")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("embeddings")
+}
+

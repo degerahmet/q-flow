@@ -7,8 +7,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
+
 
 enum ProjectStatus {
   QUEUED
@@ -19,60 +19,5 @@ enum ProjectStatus {
 enum QuestionItemStatus {
   PENDING
   REVIEWED
-}
-
-model Project {
-  id               String           @id @default(uuid())
-  status           ProjectStatus    @default(QUEUED)
-  originalFilePath String           @map("original_file_path")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
-  questionItems    QuestionItem[]
-
-  @@map("projects")
-}
-
-model QuestionItem {
-  id              String            @id @default(uuid())
-  projectId       String            @map("project_id")
-  rowIndex        Int               @map("row_index")
-  questionText    String            @map("question_text")
-  aiAnswer        String?           @map("ai_answer")
-  humanAnswer     String?           @map("human_answer")
-  confidenceScore Float?            @map("confidence_score")
-  status          QuestionItemStatus @default(PENDING)
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
-  @@index([status])
-  @@map("question_items")
-}
-
-model Document {
-  id          String      @id @default(uuid())
-  filename    String
-  contentHash String      @map("content_hash")
-  uploadDate  DateTime    @default(now()) @map("upload_date")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  embeddings  Embedding[]
-
-  @@unique([contentHash])
-  @@map("documents")
-}
-
-model Embedding {
-  id           String   @id @default(uuid())
-  documentId   String   @map("document_id")
-  chunkContent String   @map("chunk_content")
-  vector       Unsupported("vector(1536)")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-
-  @@index([documentId])
-  @@map("embeddings")
 }
 

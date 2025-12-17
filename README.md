@@ -87,11 +87,41 @@ cp .env.example .env
 
 ### 3\. Start Infrastructure (Docker)
 
+Make executable the 020_shadow_vector script
+
+```bash
+chmod +x ./docker/initdb/020_shadow_vector.sh
+```
+
 Launch the PostgreSQL and Redis services.
 
 ```bash
 docker-compose up -d
 ```
+
+#### 3.1\. Setup postgresql vector extension
+
+```bash
+docker exec -it q-flow-postgres-1 psql -U qflow -d qflow -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+To check if it exists
+
+```bash
+docker exec -it q-flow-postgres-1 psql -U qflow -d qflow -c "\dx"
+```
+
+Do same steps for the shadow database
+
+```bash
+docker exec -it q-flow-postgres-1 psql -U qflow -d qflow_shadow -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+```bash
+docker exec -it q-flow-postgres-1 psql -U qflow -d qflow_shadow -c "\dx"
+```
+
+You should see the vector package under of the "List of installed extensions" table
 
 ### 4\. Install Dependencies and Launch
 
