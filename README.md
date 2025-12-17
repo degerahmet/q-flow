@@ -1,135 +1,146 @@
-# Turborepo starter
+# Q-Flow 🛡️🤖
 
-This Turborepo starter is maintained by the Turborepo core team.
+> **AI-Powered Automation Agent for B2B Security Questionnaires and RFPs**
 
-## Using this example
+![qflow](./docs/qflow.png)
 
-Run the following command:
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Tech Stack](https://img.shields.io/badge/stack-Next.js_|_NestJS_|_LangChain_|_PostgreSQL-black)
+![Status](https://img.shields.io/badge/status-In_Development-orange)
 
-```sh
-npx create-turbo@latest
+**Q-Flow** is an **AI Agent** platform designed to automate the painful, time-consuming process of manually filling out Excel/PDF-based security and compliance questionnaires (RFPs) for B2B companies.
+
+It uses a **Retrieval-Augmented Generation (RAG)** architecture orchestrated by **LangChain** to search your company's technical documentation, generate accurate answers, and enforce a robust "Human-in-the-loop" mechanism before final export.
+
+---
+
+## 🏗 Architecture and System Design
+
+The project is engineered for **scalability** and **performance** using an **Event-Driven Architecture**. Long-running AI processes are decoupled from the User Interface (UI) thread using message queues.
+
+![SequenceDiagram](./docs/diagrams/sequence-diagram.png)
+
+-----
+
+## 🚀 Key Features
+
+* **📁 Smart Document Ingestion:** Uses **LangChain Document Loaders** to ingest and chunk technical documentation (PDF, Markdown, TXT).
+* **🧠 RAG Engine:** Vector-based search (Postgres + pgvector) learns from your knowledge base.
+* **⚡ Asynchronous Queue System:** Uses **BullMQ** (powered by Redis) to manage jobs, preventing timeouts on large file uploads and processing.
+* **✅ Confidence Scoring:** Automatically flags answers with low confidence (e.g., <70%) for mandatory human review.
+* **🎨 Modern UI:** Responsive user interface built with **Next.js**, **Tailwind CSS**, and **shadcn/ui**.
+* **🔄 Format Preservation:** Parses and re-generates Excel files while strictly maintaining the original cell styles and formatting.
+
+-----
+
+## 🛠 Tech Stack
+
+The project utilizes a **Monorepo** structure managed by **Turborepo**.
+
+### Apps
+
+* **`apps/web`**: Frontend application.
+  * Framework: **Next.js 16.0.7+ (App Router)**
+  * Styling: **Tailwind CSS**
+  * State Management: Zustand
+* **`apps/api`**: Backend API and Worker service.
+  * Framework: **NestJS**
+  * Queue: **BullMQ** (Redis-based)
+  * Documentation: Swagger / OpenAPI
+
+### Packages & Infrastructure
+
+* **Database**: PostgreSQL (with the `pgvector` extension)
+* **ORM**: Prisma
+* **AI Orchestration**: **LangChain** (Node.js)
+  * Used for: Document Loading, Text Splitting (RecursiveCharacterTextSplitter), and Chain Management.
+* **LLM**: OpenAI API (GPT-4o)
+* **DevOps**: Docker & Docker Compose
+
+-----
+
+## 🏁 Getting Started
+
+Follow these steps to get the project running on your local machine.
+
+### Prerequisites
+
+* Node.js 18+
+* Docker & Docker Compose
+* pnpm (`npm install -g pnpm`)
+
+### 1\. Clone the Repository
+
+```bash
+git clone https://github.com/degerahmet/q-flow-pub-core.git
+cd q-flow-pub-core
+````
+
+### 2\. Configure Environment Variables
+
+Copy the `.env.example` file in the root directory to `.env` and fill in the necessary API keys.
+
+```bash
+cp .env.example .env
+# Fill in OPENAI_API_KEY and DATABASE_URL
 ```
 
-## What's inside?
+### 3\. Start Infrastructure (Docker)
 
-This Turborepo includes the following packages/apps:
+Launch the PostgreSQL and Redis services.
 
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+```bash
+docker-compose up -d
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### 4\. Install Dependencies and Launch
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+```bash
+pnpm install
+pnpm db:push  # Sync database schema (Prisma migrate)
+pnpm dev      # Start all applications (Web + API) concurrently
 ```
 
-### Develop
+You can now access the services at:
 
-To develop all apps and packages, run the following command:
+* **Frontend:** `http://localhost:3000`
+* **API / Swagger:** `http://localhost:3001/api`
 
-```
-cd my-turborepo
+-----
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+## ⚠️ Assumptions & Constraints
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
+Since this repository is the "Core" open-source version of Q-Flow, please note the following limitations regarding the current architecture and Proof of Concept (PoC):
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Data & File Formats
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+* **English Only:** The system is currently optimized for English inputs. Multi-language support is planned.
+* **No OCR Capability:** The system assumes all uploaded PDFs contain **selectable text**. Scanned images or flattened PDFs will not be processed by the embedding engine in this version.
+* **Excel Structure:** The MVP assumes that the uploaded `.xlsx` questionnaire has a standard tabular structure with a clear header row.
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
+### Operational Logic
 
-### Remote Caching
+* **Third-Party APIs:** The project relies on OpenAI models. Users must provide their own valid `OPENAI_API_KEY`. Local LLMs are not currently supported.
+* **"Closed Context" Only:** The AI agent is designed to answer questions based **strictly** on the uploaded documents to minimize hallucinations.
+* **Stateless Processing:** The worker processes each row independently and does not maintain "conversational memory" between different rows of the same Excel sheet.
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+-----
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+## 📸 Screenshots
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+*(Screenshots of the Dashboard and the Excel Upload interface will be added as the project progresses)*
 
-```
-cd my-turborepo
+-----
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
+## 🔮 Roadmap
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
+* [ ] OCR support for scanned PDF forms using LangChain Unstructured Loaders.
+* [ ] Integration with Slack / Microsoft Teams for notifications.
+* [ ] Auto-Learning: Automated feedback loop to re-ingest approved answers into the knowledge base.
+* [ ] Multi-language support.
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+-----
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+## 🤝 Contributing
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
