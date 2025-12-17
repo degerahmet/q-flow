@@ -5,4 +5,5 @@ export default registerAs('env', () => ({
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   databaseUrl: process.env.DATABASE_URL || '',
+  corsAllowOrigins: process.env.CORS_ALLOW_ORIGINS || '',
 }));

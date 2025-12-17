@@ -35,6 +35,10 @@ class EnvironmentVariables {
   @IsString()
   @Matches(/^postgresql:\/\/.+$/)
   DATABASE_URL: string;
+
+  @IsString()
+  @Matches(/^(http:\/\/.+|https:\/\/.+)(,(http:\/\/.+|https:\/\/.+))*$/)
+  CORS_ALLOW_ORIGINS: string;
 }
 
 export function validate(config: Record<string, unknown>) {
