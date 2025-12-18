@@ -1,7 +1,7 @@
-"use client"
+'use client';
 
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AuthGuard } from '@/components/auth/auth-guard';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -45,6 +45,7 @@ function formatDate(dateString: string) {
 
 export default function KnowledgeBasePage() {
   return (
+    <AuthGuard>
       <>
         {/* Demo Mode Alert Banner */}
         <Alert className="border-blue-200 bg-blue-50/50">
@@ -158,6 +159,7 @@ export default function KnowledgeBasePage() {
           </CardContent>
         </Card>
       </>
-  )
+    </AuthGuard>
+  );
 }
 
