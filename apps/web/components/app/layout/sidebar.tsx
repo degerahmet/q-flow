@@ -1,7 +1,9 @@
+'use client';
 
 import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { usePathname } from "next/navigation"
 import {
     Sidebar,
     SidebarContent,
@@ -18,7 +20,6 @@ import {
     LayoutDashboard, 
     FolderOpen, 
     Book, 
-    Settings, 
     Lock,
     User
   } from "lucide-react"
@@ -43,6 +44,8 @@ const items = [
   ]
 
 export default function AppSidebar() {
+  const pathname = usePathname();
+
   return (
     <Sidebar collapsible="icon">
     <SidebarHeader>
@@ -75,9 +78,12 @@ export default function AppSidebar() {
         <SidebarGroupLabel>Menu</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {items.map((item) => (
+            {items.map((item) => {
+              const isActive = pathname === item.url || (item.url !== '/' && pathname.startsWith(item.url));
+              
+              return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild tooltip={item.title}>
+                <SidebarMenuButton asChild tooltip={item.title} isActive={isActive}>
                   <Link href={item.url}>
                     <item.icon className="size-4" />
                     <span>{item.title}</span>
@@ -90,7 +96,8 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-            ))}
+              );
+            })}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
