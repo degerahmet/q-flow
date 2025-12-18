@@ -3,7 +3,8 @@
 import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import {
     Sidebar,
     SidebarContent,
@@ -21,7 +22,8 @@ import {
     FolderOpen, 
     Book, 
     Lock,
-    User
+    User,
+    LogOut
   } from "lucide-react"
 
 const items = [
@@ -45,6 +47,13 @@ const items = [
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -111,9 +120,20 @@ export default function AppSidebar() {
               <User className="size-4" />
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">Demo User</span>
-              <span className="truncate text-xs">public@qflow.demo</span>
+              <span className="truncate font-semibold">{user?.username || 'Demo User'}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {user?.username ? 'Logged in' : 'public@qflow.demo'}
+              </span>
             </div>
+            {user && (
+              <button
+                onClick={handleLogout}
+                className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                aria-label="Logout"
+              >
+                <LogOut className="size-4" />
+              </button>
+            )}
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
