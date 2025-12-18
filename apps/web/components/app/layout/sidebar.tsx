@@ -40,11 +40,6 @@ const items = [
       icon: Book,
       badge: "Read-Only", // Demo modu için özel işaret
     },
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: Settings,
-    },
   ]
 
 export default function AppSidebar() {
