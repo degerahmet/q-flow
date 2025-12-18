@@ -20,6 +20,7 @@ async function bootstrap() {
       'AI-Powered Automation Agent for B2B Security Questionnaires and RFPs. This API provides endpoints for managing knowledge base documents, processing questionnaires, and generating AI-powered answers using RAG (Retrieval-Augmented Generation) architecture.',
     )
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

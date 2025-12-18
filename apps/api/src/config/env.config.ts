@@ -6,4 +6,6 @@ export default registerAs('env', () => ({
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   databaseUrl: process.env.DATABASE_URL || '',
   corsAllowOrigins: process.env.CORS_ALLOW_ORIGINS || '',
+  jwtSecret: process.env.JWT_SECRET || '',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1h',
 }));

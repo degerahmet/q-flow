@@ -39,6 +39,13 @@ class EnvironmentVariables {
   @IsString()
   @Matches(/^(http:\/\/.+|https:\/\/.+)(,(http:\/\/.+|https:\/\/.+))*$/)
   CORS_ALLOW_ORIGINS: string;
+
+  @IsString()
+  JWT_SECRET: string;
+
+  @IsString()
+  @IsOptional()
+  JWT_EXPIRES_IN?: string;
 }
 
 export function validate(config: Record<string, unknown>) {
