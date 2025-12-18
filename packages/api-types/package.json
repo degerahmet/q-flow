@@ -15,8 +15,8 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/auth/index.ts --dts",
-    "dev": "tsup src/index.ts src/auth/index.ts --dts --watch"
+    "build": "tsup src/index.ts src/auth/index.ts src/knowledge-base/index.ts --dts",
+    "dev": "tsup src/index.ts src/auth/index.ts src/knowledge-base/index.ts --dts --watch"
   },
   "dependencies": {
     "class-transformer": "^0.5.1",
