@@ -326,6 +326,116 @@ export class KnowledgeBaseService {
     this.logger.log(`Saved ${chunks.length} embeddings to database`);
   }
 
+  /**
+   * Retrieves paginated list of documents with their embeddings for a specific user.
+   *
+   * @param {string} userId - The ID of the user whose documents to retrieve
+   * @param {number} [page=1] - Page number (1-indexed)
+   * @param {number} [limit=10] - Number of documents per page
+   * @returns {Promise<{data: Array<{id: string, filename: string, contentHash: string, uploadDate: Date, createdAt: Date, updatedAt: Date, embeddings: Array<{id: string, documentId: string, chunkContent: string, createdAt: Date, updatedAt: Date}>}>, total: number, page: number, limit: number}>} Paginated response containing documents with embeddings
+   *
+   * @description
+   * This method:
+   * - Fetches documents filtered by userId (user-based access control)
+   * - Joins with embeddings table to include all related embeddings
+   * - Uses explicit select to only return fields defined in the DTO (excludes sensitive fields like userId)
+   * - Excludes vector data from embeddings for security and performance
+   * - Orders results by uploadDate descending (newest first)
+   * - Returns paginated results with total count
+   *
+   * @example
+   * ```typescript
+   * const result = await knowledgeBaseService.getUserDocuments('user-123', 1, 10);
+   * console.log(result.data); // Array of documents with embeddings
+   * console.log(result.total); // Total number of documents
+   * ```
+   *
+   * @throws {Error} If database query fails
+   */
+  async getUserDocuments(
+    userId: string,
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<{
+    data: Array<{
+      id: string;
+      filename: string;
+      contentHash: string;
+      uploadDate: Date;
+      createdAt: Date;
+      updatedAt: Date;
+      embeddings: Array<{
+        id: string;
+        documentId: string;
+        chunkContent: string;
+        createdAt: Date;
+        updatedAt: Date;
+      }>;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    this.logger.log(
+      `Fetching documents for user ${userId} (page: ${page}, limit: ${limit})`,
+    );
+
+    const prisma = this.getPrismaClient();
+
+    // Calculate skip for pagination
+    const skip = (page - 1) * limit;
+
+    // Fetch documents with embeddings
+    // Using explicit select to only return fields defined in the DTO
+    // This prevents exposing sensitive fields like userId
+    const [documents, total] = await Promise.all([
+      prisma.document.findMany({
+        where: {
+          userId,
+        },
+        select: {
+          id: true,
+          filename: true,
+          contentHash: true,
+          uploadDate: true,
+          createdAt: true,
+          updatedAt: true,
+          embeddings: {
+            select: {
+              id: true,
+              documentId: true,
+              chunkContent: true,
+              createdAt: true,
+              updatedAt: true,
+              // Exclude vector field
+            },
+          },
+        },
+        orderBy: {
+          uploadDate: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.document.count({
+        where: {
+          userId,
+        },
+      }),
+    ]);
+
+    this.logger.log(
+      `Found ${documents.length} documents (total: ${total}) for user ${userId}`,
+    );
+
+    return {
+      data: documents,
+      total,
+      page,
+      limit,
+    };
+  }
+
   async feedKnowledgeBase(
     userId: string,
     sourcePathOrText: string,

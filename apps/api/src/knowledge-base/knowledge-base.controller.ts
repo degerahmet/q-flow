@@ -1,18 +1,26 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
+  Query,
   UseGuards,
   Request,
   HttpCode,
   HttpStatus,
   BadRequestException,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { FeedKnowledgeBaseDto } from '@qflow/api-types';
+import {
+  FeedKnowledgeBaseDto,
+  PaginatedDocumentsResponseDto,
+} from '@qflow/api-types';
 import { FeedKnowledgeBaseJob } from './knowledge-base.processor';
+import { KnowledgeBaseService } from './knowledge-base.service';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -25,6 +33,7 @@ export class KnowledgeBaseController {
   constructor(
     @InjectQueue('knowledge-base-feed')
     private readonly knowledgeBaseQueue: Queue<FeedKnowledgeBaseJob>,
+    private readonly knowledgeBaseService: KnowledgeBaseService,
   ) {}
 
   @Post('feed')
@@ -103,5 +112,36 @@ export class KnowledgeBaseController {
       status: 'queued',
       message: 'Knowledge base feed job queued successfully',
     };
+  }
+
+  @Get('documents')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user documents with embeddings' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of user documents with embeddings',
+    type: PaginatedDocumentsResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing token',
+  })
+  async getDocuments(
+    @Request() req: any,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ): Promise<PaginatedDocumentsResponseDto> {
+    const userId = req.user.id;
+
+    // Validate pagination parameters
+    if (page < 1) {
+      throw new BadRequestException('Page must be greater than 0');
+    }
+    if (limit < 1 || limit > 100) {
+      throw new BadRequestException('Limit must be between 1 and 100');
+    }
+
+    return this.knowledgeBaseService.getUserDocuments(userId, page, limit);
   }
 }
