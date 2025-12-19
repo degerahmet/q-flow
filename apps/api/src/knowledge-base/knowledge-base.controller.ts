@@ -4,11 +4,14 @@ import {
   Get,
   Body,
   Query,
+  Param,
   UseGuards,
   Request,
   HttpCode,
   HttpStatus,
   BadRequestException,
+  NotFoundException,
+  ForbiddenException,
   ParseIntPipe,
   DefaultValuePipe,
 } from '@nestjs/common';
@@ -18,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   FeedKnowledgeBaseDto,
   PaginatedDocumentsResponseDto,
+  GetJobStatusResponseDto,
 } from '@qflow/api-types';
 import { FeedKnowledgeBaseJob } from './knowledge-base.processor';
 import { KnowledgeBaseService } from './knowledge-base.service';
@@ -25,6 +29,8 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiOperation,
+  ApiParam,
+  ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
 
@@ -70,6 +76,15 @@ export class KnowledgeBaseController {
           type: 'string',
           example: 'queued',
         },
+        message: {
+          type: 'string',
+          example: 'Knowledge base feed job queued successfully',
+        },
+      },
+      example: {
+        jobId: '123e4567-e89b-12d3-a456-426614174000',
+        status: 'queued',
+        message: 'Knowledge base feed job queued successfully',
       },
     },
   })
@@ -79,9 +94,17 @@ export class KnowledgeBaseController {
     schema: {
       type: 'object',
       properties: {
+        statusCode: {
+          type: 'number',
+          example: 400,
+        },
         message: {
           type: 'string',
           example: 'Either text or sourcePath must be provided',
+        },
+        error: {
+          type: 'string',
+          example: 'Bad Request',
         },
       },
     },
@@ -118,14 +141,146 @@ export class KnowledgeBaseController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user documents with embeddings' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (1-indexed)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of documents per page (1-100)',
+    example: 10,
+  })
   @ApiResponse({
     status: 200,
     description: 'List of user documents with embeddings',
-    type: PaginatedDocumentsResponseDto,
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                example: '550e8400-e29b-41d4-a716-446655440000',
+              },
+              filename: {
+                type: 'string',
+                example: 'security_policy_auth.md',
+              },
+              contentHash: {
+                type: 'string',
+                example: 'a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4',
+              },
+              uploadDate: {
+                type: 'string',
+                format: 'date-time',
+                example: '2024-01-15T10:30:00.000Z',
+              },
+              createdAt: {
+                type: 'string',
+                format: 'date-time',
+                example: '2024-01-15T10:30:00.000Z',
+              },
+              updatedAt: {
+                type: 'string',
+                format: 'date-time',
+                example: '2024-01-15T10:30:00.000Z',
+              },
+              embeddings: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: {
+                      type: 'string',
+                      example: '660e8400-e29b-41d4-a716-446655440001',
+                    },
+                    documentId: {
+                      type: 'string',
+                      example: '550e8400-e29b-41d4-a716-446655440000',
+                    },
+                    chunkContent: {
+                      type: 'string',
+                      example: 'Multi-factor authentication (MFA) is available for all users...',
+                    },
+                    createdAt: {
+                      type: 'string',
+                      format: 'date-time',
+                      example: '2024-01-15T10:30:00.000Z',
+                    },
+                    updatedAt: {
+                      type: 'string',
+                      format: 'date-time',
+                      example: '2024-01-15T10:30:00.000Z',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        total: {
+          type: 'number',
+          example: 25,
+        },
+        page: {
+          type: 'number',
+          example: 1,
+        },
+        limit: {
+          type: 'number',
+          example: 10,
+        },
+      },
+      example: {
+        data: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440000',
+            filename: 'security_policy_auth.md',
+            contentHash: 'a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4',
+            uploadDate: '2024-01-15T10:30:00.000Z',
+            createdAt: '2024-01-15T10:30:00.000Z',
+            updatedAt: '2024-01-15T10:30:00.000Z',
+            embeddings: [
+              {
+                id: '660e8400-e29b-41d4-a716-446655440001',
+                documentId: '550e8400-e29b-41d4-a716-446655440000',
+                chunkContent: 'Multi-factor authentication (MFA) is available for all users and can be enforced by organization admins via policy.',
+                createdAt: '2024-01-15T10:30:00.000Z',
+                updatedAt: '2024-01-15T10:30:00.000Z',
+              },
+            ],
+          },
+        ],
+        total: 25,
+        page: 1,
+        limit: 10,
+      },
+    },
   })
   @ApiResponse({
     status: 401,
     description: 'Unauthorized - Invalid or missing token',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: {
+          type: 'number',
+          example: 401,
+        },
+        message: {
+          type: 'string',
+          example: 'Unauthorized',
+        },
+      },
+    },
   })
   async getDocuments(
     @Request() req: any,
@@ -143,5 +298,230 @@ export class KnowledgeBaseController {
     }
 
     return this.knowledgeBaseService.getUserDocuments(userId, page, limit);
+  }
+
+  @Get('job-status/:jobId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get job status by job ID' })
+  @ApiParam({
+    name: 'jobId',
+    description: 'The ID of the job to get status for',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Job status retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        jobId: {
+          type: 'string',
+          example: '123e4567-e89b-12d3-a456-426614174000',
+        },
+        status: {
+          type: 'string',
+          enum: ['waiting', 'active', 'completed', 'failed', 'delayed'],
+          example: 'active',
+        },
+        progress: {
+          type: 'number',
+          example: 45,
+          description: 'Progress percentage (0-100)',
+        },
+        result: {
+          type: 'object',
+          properties: {
+            documentsCreated: {
+              type: 'number',
+              example: 10,
+            },
+            totalChunks: {
+              type: 'number',
+              example: 145,
+            },
+            totalEmbeddings: {
+              type: 'number',
+              example: 145,
+            },
+          },
+          description: 'Present when status is completed',
+        },
+        error: {
+          type: 'string',
+          example: 'Processing failed due to invalid markdown format',
+          description: 'Present when status is failed',
+        },
+        createdAt: {
+          type: 'string',
+          format: 'date-time',
+          example: '2024-01-15T10:30:00.000Z',
+        },
+        updatedAt: {
+          type: 'string',
+          format: 'date-time',
+          example: '2024-01-15T10:35:00.000Z',
+        },
+      },
+      examples: {
+        waiting: {
+          summary: 'Job waiting to be processed',
+          value: {
+            jobId: '123e4567-e89b-12d3-a456-426614174000',
+            status: 'waiting',
+            progress: 0,
+            createdAt: '2024-01-15T10:30:00.000Z',
+            updatedAt: '2024-01-15T10:30:00.000Z',
+          },
+        },
+        active: {
+          summary: 'Job being processed',
+          value: {
+            jobId: '123e4567-e89b-12d3-a456-426614174000',
+            status: 'active',
+            progress: 45,
+            createdAt: '2024-01-15T10:30:00.000Z',
+            updatedAt: '2024-01-15T10:33:00.000Z',
+          },
+        },
+        completed: {
+          summary: 'Job completed successfully',
+          value: {
+            jobId: '123e4567-e89b-12d3-a456-426614174000',
+            status: 'completed',
+            progress: 100,
+            result: {
+              documentsCreated: 10,
+              totalChunks: 145,
+              totalEmbeddings: 145,
+            },
+            createdAt: '2024-01-15T10:30:00.000Z',
+            updatedAt: '2024-01-15T10:35:00.000Z',
+          },
+        },
+        failed: {
+          summary: 'Job failed',
+          value: {
+            jobId: '123e4567-e89b-12d3-a456-426614174000',
+            status: 'failed',
+            progress: 30,
+            error: 'Processing failed due to invalid markdown format',
+            createdAt: '2024-01-15T10:30:00.000Z',
+            updatedAt: '2024-01-15T10:32:00.000Z',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Job not found',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: {
+          type: 'number',
+          example: 404,
+        },
+        message: {
+          type: 'string',
+          example: 'Job not found',
+        },
+        error: {
+          type: 'string',
+          example: 'Not Found',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Job does not belong to user',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: {
+          type: 'number',
+          example: 403,
+        },
+        message: {
+          type: 'string',
+          example: 'You do not have access to this job',
+        },
+        error: {
+          type: 'string',
+          example: 'Forbidden',
+        },
+      },
+    },
+  })
+  async getJobStatus(
+    @Param('jobId') jobId: string,
+    @Request() req: any,
+  ): Promise<GetJobStatusResponseDto> {
+    const userId = req.user.id;
+
+    // Get job from queue
+    const job = await this.knowledgeBaseQueue.getJob(jobId);
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    // Verify job belongs to the authenticated user
+    if (!job.data || job.data.userId !== userId) {
+      throw new ForbiddenException('You do not have access to this job');
+    }
+
+    // Map BullMQ job state to our response status
+    // Note: BullMQ returns 'waiting' (not 'wait'), 'active', 'completed', 'failed', 'delayed'
+    // Additional states like 'waiting-children' and 'unknown' fall through to default
+    let status: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed';
+    const jobState = await job.getState();
+
+    switch (jobState) {
+      case 'waiting':
+        status = 'waiting';
+        break;
+      case 'active':
+        status = 'active';
+        break;
+      case 'completed':
+        status = 'completed';
+        break;
+      case 'failed':
+        status = 'failed';
+        break;
+      case 'delayed':
+        status = 'delayed';
+        break;
+      default:
+        // Handle unexpected states (e.g., 'waiting-children', 'unknown') by defaulting to 'waiting'
+        status = 'waiting';
+    }
+
+    const response: GetJobStatusResponseDto = {
+      jobId: job.id!,
+      status,
+      progress: job.progress as number | undefined,
+      createdAt: job.timestamp ? new Date(job.timestamp).toISOString() : undefined,
+      updatedAt: job.processedOn
+        ? new Date(job.processedOn).toISOString()
+        : job.timestamp
+          ? new Date(job.timestamp).toISOString()
+          : undefined,
+    };
+
+    // Add result if job is completed
+    if (status === 'completed' && job.returnvalue) {
+      response.result = job.returnvalue;
+    }
+
+    // Add error if job failed
+    if (status === 'failed' && job.failedReason) {
+      response.error = job.failedReason;
+    }
+
+    return response;
   }
 }
