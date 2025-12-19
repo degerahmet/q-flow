@@ -20,6 +20,26 @@ The project is engineered for **scalability** and **performance** using an **Eve
 
 ![SequenceDiagram](./docs/diagrams/sequence-diagram.png)
 
+### Knowledge Base Processor Data Workflow Diagram
+
+```
+
+Job Queue (BullMQ)
+    ↓
+KnowledgeBaseProcessor.process()
+    ↓
+[1] Parse Markdown → Concepts[]
+    ↓
+[2] Create Concept Markdowns → ConceptMarkdown[]
+    ↓
+[3] For each ConceptMarkdown:
+    ├─ Split into Chunks → Chunk[]
+    ├─ Generate Embeddings → EmbeddingResult[] (1536-dim vectors)
+    └─ Save to Database:
+        ├─ Check/Create Document in `documents` table
+        └─ Insert Embeddings into `embeddings` table (with vector type)
+```
+
 -----
 
 ## 🚀 Key Features

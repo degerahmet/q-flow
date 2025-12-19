@@ -21,7 +21,9 @@ export class KnowledgeBaseProcessor extends WorkerHost {
   async process(job: Job<FeedKnowledgeBaseJob>) {
     const { userId, sourcePath, text, chunkSize } = job.data;
 
-    this.logger.log(`Processing knowledge base feed job ${job.id} for user ${userId}`);
+    this.logger.log(
+      `Processing knowledge base feed job ${job.id} for user ${userId}`,
+    );
 
     try {
       // Update progress: Starting
@@ -33,7 +35,8 @@ export class KnowledgeBaseProcessor extends WorkerHost {
       if (text) {
         concepts = this.knowledgeBaseService.parseMarkdownText(text);
       } else if (sourcePath) {
-        concepts = await this.knowledgeBaseService.parseMarkdownFile(sourcePath);
+        concepts =
+          await this.knowledgeBaseService.parseMarkdownFile(sourcePath);
       } else {
         throw new Error('Either text or sourcePath must be provided');
       }
@@ -41,7 +44,8 @@ export class KnowledgeBaseProcessor extends WorkerHost {
 
       // Step 2: Create concept markdowns (30%)
       this.logger.log('Step 2: Creating concept markdowns...');
-      const conceptMarkdowns = this.knowledgeBaseService.createConceptMarkdowns(concepts);
+      const conceptMarkdowns =
+        this.knowledgeBaseService.createConceptMarkdowns(concepts);
       await job.updateProgress(30);
 
       let processedFiles = 0;
@@ -63,7 +67,8 @@ export class KnowledgeBaseProcessor extends WorkerHost {
         await job.updateProgress(30 + (processedFiles / totalFiles) * 20);
 
         // Generate embeddings (70%)
-        const embeddings = await this.knowledgeBaseService.generateEmbeddings(chunks);
+        const embeddings =
+          await this.knowledgeBaseService.generateEmbeddings(chunks);
         totalEmbeddings += embeddings.length;
         await job.updateProgress(50 + (processedFiles / totalFiles) * 20);
 
