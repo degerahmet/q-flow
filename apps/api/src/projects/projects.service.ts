@@ -1,9 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProjectRequestDto,
   CreateProjectResponseDto,
+  GetProjectDetailsResponseDto,
+  GetProjectQuestionsResponseDto,
+  QuestionItemStatus,
+  ProjectStatusCountsDto,
+  ProjectStatus,
 } from '@qflow/api-types';
+import { QuestionItemStatus as PrismaQuestionItemStatus } from '@qflow/db';
 
 @Injectable()
 export class ProjectsService {
@@ -49,5 +59,110 @@ export class ProjectsService {
     });
 
     return { projectId: project.id, createdQuestions: items.length };
+  }
+
+  async getProjectDetails(
+    userId: string,
+    projectId: string,
+  ): Promise<GetProjectDetailsResponseDto> {
+    // Verify project exists
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // Verify project belongs to user
+    if (project.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have access to this project',
+      );
+    }
+
+    // Get counts grouped by status
+    const countsData = await this.prisma.questionItem.groupBy({
+      by: ['status'],
+      where: { projectId },
+      _count: true,
+    });
+
+    // Initialize counts object with all statuses set to 0
+    const counts: ProjectStatusCountsDto = {
+      [QuestionItemStatus.PENDING]: 0,
+      [QuestionItemStatus.DRAFTED]: 0,
+      [QuestionItemStatus.NEEDS_REVIEW]: 0,
+      [QuestionItemStatus.APPROVED]: 0,
+      [QuestionItemStatus.REJECTED]: 0,
+      [QuestionItemStatus.FAILED]: 0,
+      [QuestionItemStatus.EXPORTED]: 0,
+    };
+
+    // Fill in actual counts
+    countsData.forEach((item) => {
+      counts[item.status as QuestionItemStatus] = item._count;
+    });
+
+    // Calculate total questions
+    const totalQuestions = Object.values(counts).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+
+    return {
+      id: project.id,
+      status: project.status as ProjectStatus,
+      counts,
+      totalQuestions,
+    };
+  }
+
+  async getProjectQuestions(
+    userId: string,
+    projectId: string,
+    status?: QuestionItemStatus,
+  ): Promise<GetProjectQuestionsResponseDto> {
+    // Verify project exists
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // Verify project belongs to user
+    if (project.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have access to this project',
+      );
+    }
+
+    // Build where clause
+    const where: any = { projectId };
+    if (status) {
+      where.status = status as PrismaQuestionItemStatus;
+    }
+
+    // Fetch question items
+    const questionItems = await this.prisma.questionItem.findMany({
+      where,
+      orderBy: { rowIndex: 'asc' },
+    });
+
+    return {
+      questions: questionItems.map((item) => ({
+        id: item.id,
+        rowIndex: item.rowIndex,
+        questionText: item.questionText,
+        aiAnswer: item.aiAnswer,
+        humanAnswer: item.humanAnswer,
+        confidenceScore: item.confidenceScore,
+        status: item.status as QuestionItemStatus,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      })),
+    };
   }
 }
