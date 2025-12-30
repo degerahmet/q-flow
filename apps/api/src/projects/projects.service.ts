@@ -2,7 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProjectRequestDto,
@@ -13,11 +16,15 @@ import {
   ProjectStatusCountsDto,
   ProjectStatus,
 } from '@qflow/api-types';
-import { QuestionItemStatus as PrismaQuestionItemStatus } from '@qflow/db';
+import { QuestionItemStatus as PrismaQuestionItemStatus, ProjectStatus as PrismaProjectStatus } from '@qflow/db';
+import { DraftQuestionsJob } from './draft.processor';
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('draft-questions') private readonly draftQueue: Queue<DraftQuestionsJob>,
+  ) {}
 
   async createFromQuestions(
     userId: string,
@@ -164,5 +171,37 @@ export class ProjectsService {
         updatedAt: item.updatedAt,
       })),
     };
+  }
+
+  async startDraftJob(userId: string, projectId: string): Promise<void> {
+    // Verify project exists
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // Verify project belongs to user
+    if (project.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have access to this project',
+      );
+    }
+
+    // Check project status (must be PROCESSING or QUEUED)
+    if (project.status !== PrismaProjectStatus.PROCESSING && 
+        project.status !== PrismaProjectStatus.QUEUED) {
+      throw new BadRequestException(
+        `Project status must be PROCESSING or QUEUED, but is ${project.status}`,
+      );
+    }
+
+    // Enqueue draft job (idempotent - can be called multiple times)
+    await this.draftQueue.add('draft-questions', {
+      projectId,
+      userId,
+    });
   }
 }

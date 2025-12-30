@@ -99,3 +99,8 @@ export class GetProjectDetailsResponseDto {
 export class GetProjectQuestionsResponseDto {
   questions!: QuestionItemDto[];
 }
+
+export class StartDraftResponseDto {
+  @IsString()
+  status!: string;
+}

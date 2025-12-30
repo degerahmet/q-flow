@@ -15,6 +15,7 @@ import {
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
   QuestionItemStatus,
+  StartDraftResponseDto,
 } from '@qflow/api-types';
 import { ProjectsService } from './projects.service';
 import {
@@ -342,5 +343,54 @@ export class ProjectsController {
       projectId,
       validatedStatus,
     );
+  }
+
+  @Post(':id/draft')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Start draft generation for project questions' })
+  @ApiParam({
+    name: 'id',
+    description: 'Project ID',
+    type: String,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Draft job started successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          example: 'DRAFT_STARTED',
+        },
+      },
+      example: {
+        status: 'DRAFT_STARTED',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Project not found',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Project does not belong to user',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Project status must be PROCESSING or QUEUED',
+  })
+  async startDraft(
+    @Param('id') projectId: string,
+    @Request() req: any,
+  ): Promise<StartDraftResponseDto> {
+    const userId = req.user.id;
+
+    await this.projectsService.startDraftJob(userId, projectId);
+
+    return { status: 'DRAFT_STARTED' };
   }
 }
