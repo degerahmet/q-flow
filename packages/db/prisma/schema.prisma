@@ -14,10 +14,15 @@ enum ProjectStatus {
 }
 
 enum QuestionItemStatus {
-  PENDING
-  REVIEWED
+  PENDING        // not drafted yet
+  DRAFTED        // AI created the answer
+  NEEDS_REVIEW   // lack of confidence > human should be in-the loop
+  APPROVED       // human or auto-approved
+  REJECTED       // human rejected
   FAILED
+  EXPORTED       // exported by user (optional)
 }
+
 
 model User {
   id            String           @id @default(uuid())
@@ -30,21 +35,29 @@ model User {
 
   @@index([username])
   @@map("users")
+  reviewEvents ReviewEvent[]
 }
 
 model Project {
-  id               String           @id @default(uuid())
-  userId           String           @map("user_id")
-  status           ProjectStatus    @default(QUEUED)
-  originalFilePath String           @map("original_file_path")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String        @id @default(uuid())
+  userId           String        @map("user_id")
+  status           ProjectStatus @default(QUEUED)
+  originalFilePath String        @map("original_file_path")
+
+  reviewThreshold  Float         @default(0.65) @map("review_threshold")
+  autoApprove      Boolean       @default(false) @map("auto_approve")
+  exportFilePath   String?       @map("export_file_path")
+
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   questionItems    QuestionItem[]
 
   @@index([userId])
   @@map("projects")
 }
+
 
 model QuestionItem {
   id              String            @id @default(uuid())
@@ -62,6 +75,8 @@ model QuestionItem {
   @@index([projectId])
   @@index([status])
   @@map("question_items")
+  answerCitations AnswerCitation[]
+  reviewEvents ReviewEvent[]
 }
 
 model Document {
@@ -91,5 +106,37 @@ model Embedding {
 
   @@index([documentId])
   @@map("embeddings")
+  answerCitations AnswerCitation[]
 }
 
+model AnswerCitation {
+  id             String   @id @default(uuid())
+  questionItemId String   @map("question_item_id")
+  embeddingId    String   @map("embedding_id")
+  score          Float
+  snippet        String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  questionItem   QuestionItem @relation(fields: [questionItemId], references: [id], onDelete: Cascade)
+  embedding      Embedding    @relation(fields: [embeddingId], references: [id], onDelete: Cascade)
+
+  @@index([questionItemId])
+  @@index([embeddingId])
+  @@map("answer_citations")
+}
+
+model ReviewEvent {
+  id             String   @id @default(uuid())
+  questionItemId String   @map("question_item_id")
+  reviewerId     String   @map("reviewer_id")
+  action         String   // APPROVE | REJECT | EDIT_APPROVE
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  questionItem   QuestionItem @relation(fields: [questionItemId], references: [id], onDelete: Cascade)
+  reviewer       User         @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([questionItemId])
+  @@index([reviewerId])
+  @@map("review_events")
+}
