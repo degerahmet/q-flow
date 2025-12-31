@@ -104,3 +104,51 @@ export class StartDraftResponseDto {
   @IsString()
   status!: string;
 }
+
+export enum ReviewAction {
+  APPROVE = "APPROVE",
+  EDIT_APPROVE = "EDIT_APPROVE",
+  REJECT = "REJECT",
+}
+
+export class CitationDto {
+  id!: string;
+  snippet!: string;
+  score!: number;
+  createdAt!: Date;
+}
+
+export class ReviewQueueItemDto {
+  id!: string;
+  rowIndex!: number;
+  questionText!: string;
+  aiAnswer!: string | null;
+  confidenceScore!: number | null;
+  citations!: CitationDto[];
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export class ReviewQueueResponseDto {
+  questions!: ReviewQueueItemDto[];
+}
+
+export class ReviewActionDto {
+  @IsEnum(ReviewAction)
+  action!: ReviewAction;
+
+  @IsOptional()
+  @IsString()
+  humanAnswer?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class ReviewActionResponseDto {
+  questionId!: string;
+  status!: QuestionItemStatus;
+  action!: ReviewAction;
+  message!: string;
+}

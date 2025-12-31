@@ -16,6 +16,9 @@ import {
   GetProjectQuestionsResponseDto,
   QuestionItemStatus,
   StartDraftResponseDto,
+  ReviewQueueResponseDto,
+  ReviewActionDto,
+  ReviewActionResponseDto,
 } from '@qflow/api-types';
 import { ProjectsService } from './projects.service';
 import {
@@ -392,5 +395,193 @@ export class ProjectsController {
     await this.projectsService.startDraftJob(userId, projectId);
 
     return { status: 'DRAFT_STARTED' };
+  }
+
+  @Get(':id/review-queue')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get review queue for a project',
+    description: 'Returns all questions with NEEDS_REVIEW status, including citations and confidence scores',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Project ID',
+    type: String,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Review queue retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        questions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              rowIndex: { type: 'number' },
+              questionText: { type: 'string' },
+              aiAnswer: { type: 'string', nullable: true },
+              confidenceScore: { type: 'number', nullable: true },
+              citations: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    snippet: { type: 'string' },
+                    score: { type: 'number' },
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+      example: {
+        questions: [
+          {
+            id: '123e4567-e89b-12d3-a456-426614174001',
+            rowIndex: 1,
+            questionText: 'What is your data encryption standard?',
+            aiAnswer: 'We use AES-256 encryption for data at rest.',
+            confidenceScore: 0.45,
+            citations: [
+              {
+                id: 'citation-1',
+                snippet: 'Our security documentation states that we use AES-256 encryption...',
+                score: 0.45,
+                createdAt: '2024-01-15T10:30:00.000Z',
+              },
+            ],
+            createdAt: '2024-01-15T10:30:00.000Z',
+            updatedAt: '2024-01-15T10:35:00.000Z',
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Project not found',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Project does not belong to user',
+  })
+  async getReviewQueue(
+    @Param('id') projectId: string,
+    @Request() req: any,
+  ): Promise<ReviewQueueResponseDto> {
+    const userId = req.user.id;
+
+    return this.projectsService.getReviewQueue(userId, projectId);
+  }
+}
+
+@Controller('questions')
+export class QuestionsController {
+  constructor(private readonly projectsService: ProjectsService) {}
+
+  @Post(':id/review')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Submit review action for a question',
+    description: 'Approve, edit and approve, or reject a question that needs review',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Question ID',
+    type: String,
+    example: '123e4567-e89b-12d3-a456-426614174001',
+  })
+  @ApiBody({
+    description: 'Review action data',
+    schema: {
+      type: 'object',
+      required: ['action'],
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['APPROVE', 'EDIT_APPROVE', 'REJECT'],
+          description: 'Review action to perform',
+          example: 'APPROVE',
+        },
+        humanAnswer: {
+          type: 'string',
+          description: 'Required for EDIT_APPROVE action. The human-edited answer.',
+          example: 'We use AES-256 encryption with key rotation every 90 days.',
+        },
+        notes: {
+          type: 'string',
+          description: 'Optional notes for the review action',
+          example: 'Updated answer to include key rotation details',
+        },
+      },
+      example: {
+        action: 'EDIT_APPROVE',
+        humanAnswer: 'We use AES-256 encryption with key rotation every 90 days.',
+        notes: 'Updated answer to include key rotation details',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Review action processed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        questionId: { type: 'string' },
+        status: {
+          type: 'string',
+          enum: ['APPROVED', 'REJECTED'],
+        },
+        action: {
+          type: 'string',
+          enum: ['APPROVE', 'EDIT_APPROVE', 'REJECT'],
+        },
+        message: { type: 'string' },
+      },
+      example: {
+        questionId: '123e4567-e89b-12d3-a456-426614174001',
+        status: 'APPROVED',
+        action: 'EDIT_APPROVE',
+        message: 'Question edit_approved successfully',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Question not found',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Question does not belong to user',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid action, question not in NEEDS_REVIEW status, or missing required fields',
+  })
+  async submitReview(
+    @Param('id') questionId: string,
+    @Body() body: ReviewActionDto,
+    @Request() req: any,
+  ): Promise<ReviewActionResponseDto> {
+    const userId = req.user.id;
+
+    return this.projectsService.submitReview(
+      userId,
+      questionId,
+      body.action,
+      body.humanAnswer,
+      body.notes,
+    );
   }
 }

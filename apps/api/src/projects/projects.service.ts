@@ -15,6 +15,9 @@ import {
   QuestionItemStatus,
   ProjectStatusCountsDto,
   ProjectStatus,
+  ReviewQueueResponseDto,
+  ReviewAction,
+  ReviewActionResponseDto,
 } from '@qflow/api-types';
 import { QuestionItemStatus as PrismaQuestionItemStatus, ProjectStatus as PrismaProjectStatus } from '@qflow/db';
 import { DraftQuestionsJob } from './draft.processor';
@@ -203,5 +206,196 @@ export class ProjectsService {
       projectId,
       userId,
     });
+  }
+
+  async getReviewQueue(
+    userId: string,
+    projectId: string,
+  ): Promise<ReviewQueueResponseDto> {
+    // Verify project exists
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // Verify project belongs to user
+    if (project.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have access to this project',
+      );
+    }
+
+    // Fetch question items with NEEDS_REVIEW status, including citations
+    const questionItems = await this.prisma.questionItem.findMany({
+      where: {
+        projectId,
+        status: PrismaQuestionItemStatus.NEEDS_REVIEW,
+      },
+      include: {
+        answerCitations: {
+          orderBy: { score: 'desc' },
+        },
+      },
+      orderBy: { rowIndex: 'asc' },
+    });
+
+    return {
+      questions: questionItems.map((item) => ({
+        id: item.id,
+        rowIndex: item.rowIndex,
+        questionText: item.questionText,
+        aiAnswer: item.aiAnswer,
+        confidenceScore: item.confidenceScore,
+        citations: item.answerCitations.map((citation) => ({
+          id: citation.id,
+          snippet: citation.snippet,
+          score: citation.score,
+          createdAt: citation.createdAt,
+        })),
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      })),
+    };
+  }
+
+  async submitReview(
+    userId: string,
+    questionId: string,
+    action: ReviewAction,
+    humanAnswer?: string,
+    notes?: string,
+  ): Promise<ReviewActionResponseDto> {
+    // Fetch question item with project relation
+    const questionItem = await this.prisma.questionItem.findUnique({
+      where: { id: questionId },
+      include: { project: true },
+    });
+
+    if (!questionItem) {
+      throw new NotFoundException('Question not found');
+    }
+
+    // Verify question belongs to user's project
+    if (questionItem.project.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have access to this question',
+      );
+    }
+
+    // Verify question is in NEEDS_REVIEW status
+    if (questionItem.status !== PrismaQuestionItemStatus.NEEDS_REVIEW) {
+      throw new BadRequestException(
+        `Question is not in NEEDS_REVIEW status. Current status: ${questionItem.status}`,
+      );
+    }
+
+    // Validate action-specific requirements
+    if (action === ReviewAction.EDIT_APPROVE && !humanAnswer) {
+      throw new BadRequestException(
+        'humanAnswer is required for EDIT_APPROVE action',
+      );
+    }
+
+    // Determine new status and update data
+    let newStatus: PrismaQuestionItemStatus;
+    const updateData: any = {};
+
+    switch (action) {
+      case ReviewAction.APPROVE:
+        newStatus = PrismaQuestionItemStatus.APPROVED;
+        // aiAnswer becomes final, no changes needed
+        break;
+
+      case ReviewAction.EDIT_APPROVE:
+        newStatus = PrismaQuestionItemStatus.APPROVED;
+        updateData.humanAnswer = humanAnswer;
+        // aiAnswer is preserved
+        break;
+
+      case ReviewAction.REJECT:
+        newStatus = PrismaQuestionItemStatus.REJECTED;
+        // Status change only, notes optional
+        break;
+
+      default:
+        throw new BadRequestException(`Invalid review action: ${action}`);
+    }
+
+    updateData.status = newStatus;
+    updateData.updatedAt = new Date();
+
+    // Update question item
+    await this.prisma.questionItem.update({
+      where: { id: questionId },
+      data: updateData,
+    });
+
+    // Create ReviewEvent for audit trail
+    await this.prisma.reviewEvent.create({
+      data: {
+        questionItemId: questionId,
+        reviewerId: userId,
+        action,
+        notes: notes || null,
+      },
+    });
+
+    // Generate appropriate message based on action
+    let message: string;
+    switch (action) {
+      case ReviewAction.APPROVE:
+        message = 'Question approved successfully';
+        break;
+      case ReviewAction.EDIT_APPROVE:
+        message = 'Question edited and approved successfully';
+        break;
+      case ReviewAction.REJECT:
+        message = 'Question rejected successfully';
+        break;
+      default:
+        message = 'Review action processed successfully';
+    }
+
+    return {
+      questionId,
+      status: newStatus as QuestionItemStatus,
+      action,
+      message,
+    };
+  }
+
+  async checkReviewGate(
+    userId: string,
+    projectId: string,
+  ): Promise<boolean> {
+    // Verify project exists
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // Verify project belongs to user
+    if (project.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have access to this project',
+      );
+    }
+
+    // Check if any NEEDS_REVIEW questions exist
+    const needsReviewCount = await this.prisma.questionItem.count({
+      where: {
+        projectId,
+        status: PrismaQuestionItemStatus.NEEDS_REVIEW,
+      },
+    });
+
+    // Returns true if review gate is blocked (has NEEDS_REVIEW questions)
+    return needsReviewCount > 0;
   }
 }
