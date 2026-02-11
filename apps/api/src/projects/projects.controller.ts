@@ -14,6 +14,7 @@ import {
   CreateProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
+  GetProjectsResponseDto,
   GetReviewQueueResponseDto,
   QuestionItemStatus,
   ReviewActionResponseDto,
@@ -169,6 +170,67 @@ export class ProjectsController {
     const userId = req.user.id;
 
     return this.projectsService.createFromQuestions(userId, body);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List projects for the authenticated user' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Max number of projects to return (default 50, max 50)',
+    example: 50,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of projects with status counts',
+    schema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              originalName: { type: 'string' },
+              status: {
+                type: 'string',
+                enum: ['QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED'],
+              },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+              counts: {
+                type: 'object',
+                properties: {
+                  PENDING: { type: 'number' },
+                  DRAFTED: { type: 'number' },
+                  NEEDS_REVIEW: { type: 'number' },
+                  APPROVED: { type: 'number' },
+                  REJECTED: { type: 'number' },
+                  FAILED: { type: 'number' },
+                  EXPORTED: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing token',
+  })
+  async getProjects(
+    @Request() req: any,
+    @Query('limit') limit?: string,
+  ): Promise<GetProjectsResponseDto> {
+    const userId = req.user.id;
+    const parsedLimit = limit != null ? Math.min(50, Math.max(1, parseInt(limit, 10) || 50)) : 50;
+    return this.projectsService.getProjects(userId, parsedLimit);
   }
 
   @Get(':id')

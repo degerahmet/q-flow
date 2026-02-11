@@ -13,6 +13,7 @@ import {
   CreateProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
+  GetProjectsResponseDto,
   GetReviewQueueResponseDto,
   ProjectStatus,
   ProjectStatusCountsDto,
@@ -74,6 +75,65 @@ export class ProjectsService {
     });
 
     return { projectId: project.id, createdQuestions: items.length };
+  }
+
+  async getProjects(
+    userId: string,
+    limit = 50,
+  ): Promise<GetProjectsResponseDto> {
+    const projects = await this.prisma.project.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        originalFilePath: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const projectIds = projects.map((p) => p.id);
+    if (projectIds.length === 0) {
+      return { items: [] };
+    }
+
+    const countsData = await this.prisma.questionItem.groupBy({
+      by: ['projectId', 'status'],
+      where: { projectId: { in: projectIds } },
+      _count: true,
+    });
+
+    const countsByProject = new Map<string, ProjectStatusCountsDto>();
+    for (const pid of projectIds) {
+      countsByProject.set(pid, {
+        [QuestionItemStatus.PENDING]: 0,
+        [QuestionItemStatus.DRAFTED]: 0,
+        [QuestionItemStatus.NEEDS_REVIEW]: 0,
+        [QuestionItemStatus.APPROVED]: 0,
+        [QuestionItemStatus.REJECTED]: 0,
+        [QuestionItemStatus.FAILED]: 0,
+        [QuestionItemStatus.EXPORTED]: 0,
+      });
+    }
+    countsData.forEach((row) => {
+      const counts = countsByProject.get(row.projectId);
+      if (counts) {
+        counts[row.status as QuestionItemStatus] = row._count;
+      }
+    });
+
+    const items = projects.map((project) => ({
+      id: project.id,
+      originalName: project.originalFilePath,
+      status: project.status as ProjectStatus,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      counts: countsByProject.get(project.id)!,
+    }));
+
+    return { items };
   }
 
   async getProjectDetails(

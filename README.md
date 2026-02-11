@@ -156,6 +156,22 @@ You can now access the services at:
 * **Frontend:** `http://localhost:3000`
 * **API / Swagger:** `http://localhost:3001/api`
 
+### 5. Projects Dashboard – Local runbook
+
+To run frontend and backend separately (e.g. for debugging):
+
+* **Backend:** From repo root run `pnpm --filter @qflow/db generate`, then `pnpm --filter api dev` (API on port 3001).
+* **Frontend:** `pnpm --filter web dev` (Next.js on port 3000).
+
+Example flow to test the Projects dashboard:
+
+1. Log in and go to **Projects**.
+2. Upload an `.xlsx` file (use a column header containing "Question", or column A; data from row 2).
+3. Confirm the detected question count and preview, then click **Create Project**.
+4. In the list, click **Start Draft** for the new project.
+5. When items move to "Needs review", click **Review** to open `/projects/[id]/review`.
+6. Complete review; **Export** remains a disabled placeholder until you implement it.
+
 -----
 
 ## ⚠️ Assumptions & Constraints

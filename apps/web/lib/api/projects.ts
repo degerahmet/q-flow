@@ -1,12 +1,81 @@
 import type {
+  CreateProjectRequestDto,
+  CreateProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
+  GetProjectsResponseDto,
   GetReviewQueueResponseDto,
   ReviewActionResponseDto,
 } from '@/lib/api/types/projects';
 import { QuestionItemStatus } from '@/lib/api/types/projects';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+export async function getProjects(
+  token: string,
+): Promise<GetProjectsResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/projects`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Get projects failed' }));
+    throw new Error(
+      (error as { message?: string }).message || `Get projects failed: ${response.status}`,
+    );
+  }
+
+  return response.json();
+}
+
+export async function createProject(
+  token: string,
+  body: CreateProjectRequestDto,
+): Promise<CreateProjectResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Create project failed' }));
+    throw new Error(
+      (error as { message?: string }).message || `Create project failed: ${response.status}`,
+    );
+  }
+
+  return response.json();
+}
+
+export async function startDraft(
+  token: string,
+  projectId: string,
+): Promise<{ status: string }> {
+  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/draft`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Start draft failed' }));
+    throw new Error(
+      (error as { message?: string }).message || `Start draft failed: ${response.status}`,
+    );
+  }
+
+  return response.json();
+}
 
 export interface ReviewQuestionRequestBody {
   action: 'APPROVE' | 'EDIT_APPROVE' | 'REJECT';

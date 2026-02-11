@@ -17,6 +17,16 @@ export const QuestionItemStatus = {
 export type QuestionItemStatusValue =
   (typeof QuestionItemStatus)[keyof typeof QuestionItemStatus];
 
+export const ProjectStatus = {
+  QUEUED: 'QUEUED',
+  PROCESSING: 'PROCESSING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+} as const;
+
+export type ProjectStatusValue =
+  (typeof ProjectStatus)[keyof typeof ProjectStatus];
+
 export interface ProjectStatusCounts {
   PENDING?: number;
   DRAFTED?: number;
@@ -27,11 +37,35 @@ export interface ProjectStatusCounts {
   EXPORTED?: number;
 }
 
+export interface ProjectListItemDto {
+  id: string;
+  originalName: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  counts: ProjectStatusCounts;
+}
+
+export interface GetProjectsResponseDto {
+  items: ProjectListItemDto[];
+}
+
 export interface GetProjectDetailsResponseDto {
   id: string;
   status: string;
   counts: ProjectStatusCounts;
   totalQuestions: number;
+}
+
+export interface CreateProjectRequestDto {
+  originalName?: string;
+  sourceType?: 'XLSX' | 'CSV';
+  questions: { rowIndex: number; questionText: string }[];
+}
+
+export interface CreateProjectResponseDto {
+  projectId: string;
+  createdQuestions: number;
 }
 
 export interface QuestionItemDto {

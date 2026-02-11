@@ -101,6 +101,19 @@ export class GetProjectQuestionsResponseDto {
   questions!: QuestionItemDto[];
 }
 
+export class ProjectListItemDto {
+  id!: string;
+  originalName!: string;
+  status!: ProjectStatus;
+  createdAt!: Date;
+  updatedAt!: Date;
+  counts!: ProjectStatusCountsDto;
+}
+
+export class GetProjectsResponseDto {
+  items!: ProjectListItemDto[];
+}
+
 export class StartDraftResponseDto {
   @IsString()
   status!: string;
