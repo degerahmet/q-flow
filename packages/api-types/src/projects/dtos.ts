@@ -189,3 +189,16 @@ export class ReviewActionResponseDto {
   action!: ReviewAction;
   message!: string;
 }
+
+export class ExportProjectItemDto {
+  rowIndex!: number;
+  questionText!: string;
+  finalAnswer!: string;
+}
+
+export class ExportProjectResponseDto {
+  projectId!: string;
+  projectName!: string;
+  generatedAt!: string;
+  items!: ExportProjectItemDto[];
+}

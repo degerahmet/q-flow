@@ -1,6 +1,7 @@
 import type {
   CreateProjectRequestDto,
   CreateProjectResponseDto,
+  ExportProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
   GetProjectsResponseDto,
@@ -147,6 +148,34 @@ export async function getProjectQuestions(
     const error = await response.json().catch(() => ({ message: 'Get project questions failed' }));
     throw new Error(
       (error as { message?: string }).message || `Get project questions failed: ${response.status}`,
+    );
+  }
+
+  return response.json();
+}
+
+export async function getProjectExport(
+  token: string,
+  projectId: string,
+): Promise<ExportProjectResponseDto> {
+  const response = await fetch(
+    `${API_BASE_URL}/projects/${projectId}/export`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ message: 'Export failed' }));
+    throw new Error(
+      (error as { message?: string }).message ||
+        `Export failed: ${response.status}`,
     );
   }
 

@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProjectRequestDto,
   CreateProjectResponseDto,
+  ExportProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
   GetProjectsResponseDto,
@@ -454,6 +455,44 @@ export class ProjectsService {
 
     // Returns true if review gate is blocked (has NEEDS_REVIEW questions)
     return needsReviewCount > 0;
+  }
+
+  async exportProject(
+    userId: string,
+    projectId: string,
+  ): Promise<ExportProjectResponseDto> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    if (project.userId !== userId) {
+      throw new ForbiddenException('You do not have access to this project');
+    }
+
+    await this.validateProjectReadyForExport(projectId);
+
+    const questionItems = await this.prisma.questionItem.findMany({
+      where: { projectId },
+      orderBy: { rowIndex: 'asc' },
+    });
+
+    const items = questionItems.map((item) => ({
+      rowIndex: item.rowIndex,
+      questionText: item.questionText,
+      finalAnswer:
+        item.humanAnswer ?? item.aiAnswer ?? '',
+    }));
+
+    return {
+      projectId: project.id,
+      projectName: project.originalFilePath,
+      generatedAt: new Date().toISOString(),
+      items,
+    };
   }
 
   /**

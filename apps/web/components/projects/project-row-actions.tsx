@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -9,8 +10,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { startDraft } from '@/lib/api/projects';
+import { startDraft, getProjectExport } from '@/lib/api/projects';
 import { getToken } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
 import type { ProjectListItemDto } from '@/lib/api/types/projects';
 import { FileEdit, FileText, Loader2, Download } from 'lucide-react';
 
@@ -24,14 +26,24 @@ export function ProjectRowActions({
   onDraftStarted,
 }: ProjectRowActionsProps) {
   const [drafting, setDrafting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const { toast } = useToast();
   const counts = project.counts ?? {};
   const pending = counts.PENDING ?? 0;
   const needsReview = counts.NEEDS_REVIEW ?? 0;
+  const total =
+    (counts.PENDING ?? 0) +
+    (counts.DRAFTED ?? 0) +
+    (counts.NEEDS_REVIEW ?? 0) +
+    (counts.APPROVED ?? 0) +
+    (counts.REJECTED ?? 0) +
+    (counts.FAILED ?? 0) +
+    (counts.EXPORTED ?? 0);
   const canStartDraft =
     pending > 0 &&
     (project.status === 'PROCESSING' || project.status === 'QUEUED');
   const canReview = needsReview > 0;
-  const canExport = needsReview === 0;
+  const canExport = needsReview === 0 && total > 0;
 
   const handleStartDraft = async () => {
     const token = getToken();
@@ -42,6 +54,34 @@ export function ProjectRowActions({
       onDraftStarted?.();
     } finally {
       setDrafting(false);
+    }
+  };
+
+  const handleExport = async () => {
+    const token = getToken();
+    if (!token || !canExport) return;
+    setExporting(true);
+    try {
+      const data = await getProjectExport(token, project.id);
+      const ws = XLSX.utils.aoa_to_sheet([
+        ['Question', 'Answer'],
+        ...data.items.map((i) => [i.questionText, i.finalAnswer]),
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Export');
+      XLSX.writeFile(wb, `${data.projectName}-export.xlsx`);
+      toast({
+        title: 'Export downloaded',
+        description: `${data.projectName}-export.xlsx`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Export blocked',
+        description: err instanceof Error ? err.message : 'Complete review before export',
+        variant: 'destructive',
+      });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -89,14 +129,19 @@ export function ProjectRowActions({
                 size="sm"
                 disabled={!canExport}
                 aria-label="Export (complete review first)"
+                onClick={handleExport}
               >
-                <Download className="h-4 w-4" />
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
               </Button>
             </span>
           </TooltipTrigger>
           <TooltipContent>
             {canExport
-              ? 'Export (not implemented yet)'
+              ? 'Export to Excel'
               : 'Complete review before export'}
           </TooltipContent>
         </Tooltip>

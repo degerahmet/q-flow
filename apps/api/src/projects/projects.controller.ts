@@ -12,6 +12,7 @@ import {
 import {
   CreateProjectRequestDto,
   CreateProjectResponseDto,
+  ExportProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
   GetProjectsResponseDto,
@@ -231,6 +232,61 @@ export class ProjectsController {
     const userId = req.user.id;
     const parsedLimit = limit != null ? Math.min(50, Math.max(1, parseInt(limit, 10) || 50)) : 50;
     return this.projectsService.getProjects(userId, parsedLimit);
+  }
+
+  @Get(':id/export')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export project as clean JSON (Question/Answer)' })
+  @ApiParam({
+    name: 'id',
+    description: 'Project ID',
+    type: String,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Export data retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        projectName: { type: 'string' },
+        generatedAt: { type: 'string', format: 'date-time' },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              rowIndex: { type: 'number' },
+              questionText: { type: 'string' },
+              finalAnswer: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or missing token' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Project does not belong to user' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Project has questions that need review',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 409 },
+        message: { type: 'string', example: 'Project has questions that need review; complete review before export' },
+      },
+    },
+  })
+  async exportProject(
+    @Param('id') projectId: string,
+    @Request() req: any,
+  ): Promise<ExportProjectResponseDto> {
+    const userId = req.user.id;
+    return this.projectsService.exportProject(userId, projectId);
   }
 
   @Get(':id')

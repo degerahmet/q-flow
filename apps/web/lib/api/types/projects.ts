@@ -111,3 +111,16 @@ export interface ReviewActionResponseDto {
   action: string;
   message: string;
 }
+
+export interface ExportProjectItemDto {
+  rowIndex: number;
+  questionText: string;
+  finalAnswer: string;
+}
+
+export interface ExportProjectResponseDto {
+  projectId: string;
+  projectName: string;
+  generatedAt: string;
+  items: ExportProjectItemDto[];
+}
