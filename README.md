@@ -1,29 +1,112 @@
-# Q-Flow 🛡️🤖
+# Q-Flow
 
-> **AI-Powered Automation Agent for B2B Security Questionnaires and RFPs**
+> **AI-powered B2B compliance questionnaire assistant**
 
 ![qflow](./docs/qflow.png)
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Tech Stack](https://img.shields.io/badge/stack-Next.js_|_NestJS_|_LangChain_|_PostgreSQL-black)
-![Status](https://img.shields.io/badge/status-In_Development-orange)
+![Tech Stack](https://img.shields.io/badge/stack-Next.js_|_NestJS_|_Gemini_|_PostgreSQL_|_pgvector-black)
+![Status](https://img.shields.io/badge/status-MVP-orange)
 
-**Q-Flow** is an **AI Agent** platform designed to automate the painful, time-consuming process of manually filling out Excel/PDF-based security and compliance questionnaires (RFPs) for B2B companies.
-
-It uses a **Retrieval-Augmented Generation (RAG)** architecture orchestrated by **LangChain** to search your company's technical documentation, generate accurate answers, and enforce a robust "Human-in-the-loop" mechanism before final export.
+**Q-Flow** automates security and compliance questionnaires (RFPs) for B2B companies. It ingests your technical documentation, generates draft answers with RAG, and enforces human-in-the-loop review before export.
 
 ---
 
-## 🏗 Architecture and System Design
+## What It Does
 
-The project is engineered for **scalability** and **performance** using an **Event-Driven Architecture**. Long-running AI processes are decoupled from the User Interface (UI) thread using message queues.
+- **Ingests** Markdown content into a vector knowledge base (Postgres + pgvector)
+- **Generates** draft answers using RAG: vector search + Gemini, with citations and confidence scores
+- **Surfaces** low-confidence answers for mandatory human review
+- **Exports** only after all items are reviewed—Excel generated client-side (Question/Answer)
 
-![SequenceDiagram](./docs/diagrams/sequence-diagram.png)
+---
 
-### Knowledge Base Processor Data Workflow Diagram
+## Demo Workflow
 
+![Demo Workflow](./docs/diagrams/demo-workflow.png)
+
+---
+
+## Quickstart
+
+### Prerequisites
+
+- Node.js 18+
+- Docker & Docker Compose
+- pnpm (`npm install -g pnpm`)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/degerahmet/q-flow.git
+cd q-flow
 ```
 
+### 2. Configure Environment Variables
+
+Copy `.env.example` from `apps/api` and `packages/db` into the appropriate locations. Required variables:
+
+| Variable | Description |
+| ---------- | ------------- |
+| `GEMINI_API_KEY` | Google Gemini API key (embeddings + answer generation) |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string (e.g. `redis://localhost:6379`) |
+| `JWT_SECRET` | Secret for JWT auth |
+| `CORS_ALLOW_ORIGINS` | Comma-separated allowed origins (e.g. `http://localhost:3000`) |
+
+### 3. Start Infrastructure
+
+```bash
+chmod +x ./docker/initdb/020_shadow_vector.sh
+docker-compose up -d
+```
+
+Enable the pgvector extension:
+
+```bash
+docker exec -it q-flow-postgres-1 psql -U qflow -d qflow -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker exec -it q-flow-postgres-1 psql -U qflow -d qflow_shadow -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+### 4. Install and Run
+
+```bash
+pnpm install
+pnpm --filter api db:push
+pnpm dev
+```
+
+- **Frontend:** http://localhost:3000
+- **API / Swagger:** http://localhost:3001/api
+
+### 5. End-to-End Flow
+
+1. **Ingest:** Knowledge Base → paste Markdown → Feed → wait for job completion
+2. **Create project:** Projects → upload `.xlsx` → preview questions → Create Project
+3. **Draft:** Start Draft → wait for processing → items move to NEEDS_REVIEW
+4. **Review:** Review → approve/edit/reject each answer
+5. **Export:** After all reviewed → Export downloads Question/Answer Excel (client-side)
+
+---
+
+## Key Features
+
+- **RAG + citations:** Vector search over the knowledge base; answers cite source chunks
+- **Confidence scoring:** Low confidence → NEEDS_REVIEW; review queue surfaces them
+- **Audit trail:** `ReviewEvent` records approve/reject/edit with reviewer and timestamp
+- **Export gate:** Export blocked until no NEEDS_REVIEW items; API returns 409 otherwise
+
+---
+
+## Architecture Overview
+
+- **Monorepo:** Turborepo (apps/api, apps/web, packages/*)
+- **API:** NestJS, BullMQ, Prisma, Gemini, pgvector
+- **Web:** Next.js 16 (App Router), Tailwind, shadcn/ui
+
+### Knowledge Base Processor (ASCII)
+
+```
 Job Queue (BullMQ)
     ↓
 KnowledgeBaseProcessor.process()
@@ -34,179 +117,68 @@ KnowledgeBaseProcessor.process()
     ↓
 [3] For each ConceptMarkdown:
     ├─ Split into Chunks → Chunk[]
-    ├─ Generate Embeddings → EmbeddingResult[] (1536-dim vectors)
+    ├─ Generate Embeddings (Gemini) → EmbeddingResult[] (1536-dim vectors)
     └─ Save to Database:
         ├─ Check/Create Document in `documents` table
-        └─ Insert Embeddings into `embeddings` table (with vector type)
+        └─ Insert Embeddings into `embeddings` table (pgvector)
 ```
 
------
+---
 
-## 🚀 Key Features
+## Project Structure
 
-* **📁 Smart Document Ingestion:** Uses **LangChain Document Loaders** to ingest and chunk technical documentation (PDF, Markdown, TXT).
-* **🧠 RAG Engine:** Vector-based search (Postgres + pgvector) learns from your knowledge base.
-* **⚡ Asynchronous Queue System:** Uses **BullMQ** (powered by Redis) to manage jobs, preventing timeouts on large file uploads and processing.
-* **✅ Confidence Scoring:** Automatically flags answers with low confidence (e.g., <70%) for mandatory human review.
-* **🎨 Modern UI:** Responsive user interface built with **Next.js**, **Tailwind CSS**, and **shadcn/ui**.
-* **🔄 Format Preservation:** Parses and re-generates Excel files while strictly maintaining the original cell styles and formatting.
-
------
-
-## 🛠 Tech Stack
-
-The project utilizes a **Monorepo** structure managed by **Turborepo**.
-
-### Apps
-
-* **`apps/web`**: Frontend application.
-  * Framework: **Next.js 16.0.7+ (App Router)**
-  * Styling: **Tailwind CSS**
-  * State Management: Zustand
-* **`apps/api`**: Backend API and Worker service.
-  * Framework: **NestJS**
-  * Queue: **BullMQ** (Redis-based)
-  * Documentation: Swagger / OpenAPI
-
-### Packages & Infrastructure
-
-* **Database**: PostgreSQL (with the `pgvector` extension)
-* **ORM**: Prisma
-* **AI Orchestration**: **LangChain** (Node.js)
-  * Used for: Document Loading, Text Splitting (RecursiveCharacterTextSplitter), and Chain Management.
-* **LLM**: OpenAI API (GPT-4o)
-* **DevOps**: Docker & Docker Compose
-
------
-
-## 🏁 Getting Started
-
-Follow these steps to get the project running on your local machine.
-
-### Prerequisites
-
-* Node.js 18+
-* Docker & Docker Compose
-* pnpm (`npm install -g pnpm`)
-
-### 1\. Clone the Repository
-
-```bash
-git clone https://github.com/degerahmet/q-flow-pub-core.git
-cd q-flow-pub-core
-````
-
-### 2\. Configure Environment Variables
-
-Copy the `.env.example` file in the root directory to `.env` and fill in the necessary API keys.
-
-```bash
-cp .env.example .env
-# Fill in OPENAI_API_KEY and DATABASE_URL
+```
+q-flow/
+├── apps/
+│   ├── api/          # NestJS backend + BullMQ workers
+│   └── web/          # Next.js frontend
+├── packages/
+│   ├── api-types/    # Shared DTOs
+│   ├── db/           # Prisma schema + migrations
+│   ├── eslint-config/
+│   ├── typescript-config/
+│   └── ui/           # Shared UI components
+├── docker/
+└── docker-compose.yml
 ```
 
-### 3\. Start Infrastructure (Docker)
+---
 
-Make executable the 020_shadow_vector script
+## API / DTO Notes
 
-```bash
-chmod +x ./docker/initdb/020_shadow_vector.sh
-```
+- **Projects:** `CreateProjectRequestDto` accepts a `questions` array; `QuestionItemStatus` flows PENDING → DRAFTED → NEEDS_REVIEW → APPROVED/REJECTED
+- **Export:** `GET /projects/:id/export` returns `items` with `questionText` and `finalAnswer`
+- **Knowledge base:** `POST /knowledge-base/feed` with `text` (Markdown)
 
-Launch the PostgreSQL and Redis services.
+---
 
-```bash
-docker-compose up -d
-```
+## Security & Data Handling
 
-#### 3.1\. Setup postgresql vector extension
+- **Closed context:** Answers are based only on the knowledge base. If no relevant chunks are found, the system responds with "Not enough information", confidence 0, and NEEDS_REVIEW.
+- **Review gate:** Export is forbidden until no items are in NEEDS_REVIEW; the API returns 409 if not ready.
+- **Third-party APIs:** Gemini is used for embeddings and answer generation. Ensure your data complies with your policies regarding third-party AI processors.
 
-```bash
-docker exec -it q-flow-postgres-1 psql -U qflow -d qflow -c "CREATE EXTENSION IF NOT EXISTS vector;"
-```
+---
 
-To check if it exists
+## Roadmap
 
-```bash
-docker exec -it q-flow-postgres-1 psql -U qflow -d qflow -c "\dx"
-```
+- Answer memory reuse (reuse approved answers for similar questions)
+- Retries and concurrency controls for draft jobs
+- Multi-tenant support
+- Eval/metrics for answer quality
 
-Do same steps for the shadow database
+---
 
-```bash
-docker exec -it q-flow-postgres-1 psql -U qflow -d qflow_shadow -c "CREATE EXTENSION IF NOT EXISTS vector;"
-```
+## Screenshots
 
-```bash
-docker exec -it q-flow-postgres-1 psql -U qflow -d qflow_shadow -c "\dx"
-```
+![Projects Dashboard](./docs/screenshots/projects-dashboard.png)
+*Projects dashboard: upload questionnaire, create project, start draft*
 
-You should see the vector package under of the "List of installed extensions" table
+![Review Interface](./docs/screenshots/review-interface.png)
+*Review interface: approve, edit, or reject answers with citations*
 
-### 4\. Install Dependencies and Launch
+---
 
-```bash
-pnpm install
-pnpm db:push  # Sync database schema (Prisma migrate)
-pnpm dev      # Start all applications (Web + API) concurrently
-```
-
-You can now access the services at:
-
-* **Frontend:** `http://localhost:3000`
-* **API / Swagger:** `http://localhost:3001/api`
-
-### 5. Projects Dashboard – Local runbook
-
-To run frontend and backend separately (e.g. for debugging):
-
-* **Backend:** From repo root run `pnpm --filter @qflow/db generate`, then `pnpm --filter api dev` (API on port 3001).
-* **Frontend:** `pnpm --filter web dev` (Next.js on port 3000).
-
-Example flow to test the Projects dashboard:
-
-1. Log in and go to **Projects**.
-2. Upload an `.xlsx` file (use a column header containing "Question", or column A; data from row 2).
-3. Confirm the detected question count and preview, then click **Create Project**.
-4. In the list, click **Start Draft** for the new project.
-5. When items move to "Needs review", click **Review** to open `/projects/[id]/review`.
-6. Complete review; **Export** remains a disabled placeholder until you implement it.
-
------
-
-## ⚠️ Assumptions & Constraints
-
-Since this repository is the "Core" open-source version of Q-Flow, please note the following limitations regarding the current architecture and Proof of Concept (PoC):
-
-### Data & File Formats
-
-* **English Only:** The system is currently optimized for English inputs. Multi-language support is planned.
-* **No OCR Capability:** The system assumes all uploaded PDFs contain **selectable text**. Scanned images or flattened PDFs will not be processed by the embedding engine in this version.
-* **Excel Structure:** The MVP assumes that the uploaded `.xlsx` questionnaire has a standard tabular structure with a clear header row.
-
-### Operational Logic
-
-* **Third-Party APIs:** The project relies on OpenAI models. Users must provide their own valid `OPENAI_API_KEY`. Local LLMs are not currently supported.
-* **"Closed Context" Only:** The AI agent is designed to answer questions based **strictly** on the uploaded documents to minimize hallucinations.
-* **Stateless Processing:** The worker processes each row independently and does not maintain "conversational memory" between different rows of the same Excel sheet.
-
------
-
-## 📸 Screenshots
-
-*(Screenshots of the Dashboard and the Excel Upload interface will be added as the project progresses)*
-
------
-
-## 🔮 Roadmap
-
-* [ ] OCR support for scanned PDF forms using LangChain Unstructured Loaders.
-* [ ] Integration with Slack / Microsoft Teams for notifications.
-* [ ] Auto-Learning: Automated feedback loop to re-ingest approved answers into the knowledge base.
-* [ ] Multi-language support.
-
------
-
-## 🤝 Contributing
+## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
