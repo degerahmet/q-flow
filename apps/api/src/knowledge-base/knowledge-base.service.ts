@@ -179,10 +179,9 @@ export class KnowledgeBaseService {
       try {
         const chunk = chunks[i];
 
-        // Use Gemini embedding API
-        // text-embedding-004 model
+        // Use Gemini embedding API (gemini-embedding-001; text-embedding-004 is deprecated/removed from v1beta)
         const response = await this.geminiApi
-          .getGenerativeModel({ model: 'text-embedding-004' })
+          .getGenerativeModel({ model: 'gemini-embedding-001' })
           .embedContent(chunk.content);
 
         // Extract embedding vector
