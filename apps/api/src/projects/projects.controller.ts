@@ -14,11 +14,11 @@ import {
   CreateProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
+  GetReviewQueueResponseDto,
   QuestionItemStatus,
-  StartDraftResponseDto,
-  ReviewQueueResponseDto,
-  ReviewActionDto,
   ReviewActionResponseDto,
+  ReviewQuestionRequestDto,
+  StartDraftResponseDto,
 } from '@qflow/api-types';
 import { ProjectsService } from './projects.service';
 import {
@@ -431,10 +431,9 @@ export class ProjectsController {
                 items: {
                   type: 'object',
                   properties: {
-                    id: { type: 'string' },
-                    snippet: { type: 'string' },
+                    embeddingId: { type: 'string' },
                     score: { type: 'number' },
-                    createdAt: { type: 'string', format: 'date-time' },
+                    snippet: { type: 'string' },
                   },
                 },
               },
@@ -454,10 +453,9 @@ export class ProjectsController {
             confidenceScore: 0.45,
             citations: [
               {
-                id: 'citation-1',
-                snippet: 'Our security documentation states that we use AES-256 encryption...',
+                embeddingId: 'emb-123',
                 score: 0.45,
-                createdAt: '2024-01-15T10:30:00.000Z',
+                snippet: 'Our security documentation states that we use AES-256 encryption...',
               },
             ],
             createdAt: '2024-01-15T10:30:00.000Z',
@@ -478,7 +476,7 @@ export class ProjectsController {
   async getReviewQueue(
     @Param('id') projectId: string,
     @Request() req: any,
-  ): Promise<ReviewQueueResponseDto> {
+  ): Promise<GetReviewQueueResponseDto> {
     const userId = req.user.id;
 
     return this.projectsService.getReviewQueue(userId, projectId);
@@ -571,7 +569,7 @@ export class QuestionsController {
   })
   async submitReview(
     @Param('id') questionId: string,
-    @Body() body: ReviewActionDto,
+    @Body() body: ReviewQuestionRequestDto,
     @Request() req: any,
   ): Promise<ReviewActionResponseDto> {
     const userId = req.user.id;

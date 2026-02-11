@@ -7,6 +7,7 @@ import {
   IsString,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -118,21 +119,44 @@ export class CitationDto {
   createdAt!: Date;
 }
 
+/** Citation shape for review queue response (embeddingId, score, snippet only). */
+export class ReviewQueueCitationDto {
+  embeddingId!: string;
+  score!: number;
+  snippet!: string;
+}
+
 export class ReviewQueueItemDto {
   id!: string;
   rowIndex!: number;
   questionText!: string;
   aiAnswer!: string | null;
   confidenceScore!: number | null;
-  citations!: CitationDto[];
+  citations!: ReviewQueueCitationDto[];
   createdAt!: Date;
   updatedAt!: Date;
 }
 
-export class ReviewQueueResponseDto {
+export class GetReviewQueueResponseDto {
   questions!: ReviewQueueItemDto[];
 }
 
+/** Request DTO for POST /questions/:id/review. humanAnswer required when action is EDIT_APPROVE. */
+export class ReviewQuestionRequestDto {
+  @IsEnum(ReviewAction)
+  action!: ReviewAction;
+
+  @ValidateIf((o: ReviewQuestionRequestDto) => o.action === ReviewAction.EDIT_APPROVE)
+  @IsNotEmpty({ message: 'humanAnswer is required when action is EDIT_APPROVE' })
+  @IsString()
+  humanAnswer?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+/** @deprecated Use ReviewQuestionRequestDto. Kept for backward compatibility. */
 export class ReviewActionDto {
   @IsEnum(ReviewAction)
   action!: ReviewAction;

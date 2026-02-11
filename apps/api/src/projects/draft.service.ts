@@ -37,11 +37,14 @@ export class DraftService {
    * Generate embedding for a question text using Gemini
    */
   async generateQuestionEmbedding(questionText: string): Promise<number[]> {
-    this.logger.log(`Generating embedding for question: ${questionText.substring(0, 50)}...`);
+    this.logger.log(
+      `Generating embedding for question: ${questionText.substring(0, 50)}...`,
+    );
 
     try {
+      // Use gemini-embedding-001 (text-embedding-004 is deprecated/removed from v1beta)
       const response = await this.geminiApi
-        .getGenerativeModel({ model: 'text-embedding-004' })
+        .getGenerativeModel({ model: 'gemini-embedding-001' })
         .embedContent(questionText);
 
       const embedding = response.embedding?.values || [];
@@ -51,13 +54,12 @@ export class DraftService {
       }
 
       // Ensure 1536 dimensions
-      let finalEmbedding = embedding as number[];
+      let finalEmbedding = embedding;
       if (finalEmbedding.length !== 1536) {
         if (finalEmbedding.length < 1536) {
-          finalEmbedding = [
-            ...finalEmbedding,
-            ...new Array(1536 - finalEmbedding.length).fill(0),
-          ];
+          const paddingLength = 1536 - finalEmbedding.length;
+          const padding: number[] = new Array<number>(paddingLength).fill(0);
+          finalEmbedding = finalEmbedding.concat(padding);
         } else {
           finalEmbedding = finalEmbedding.slice(0, 1536);
         }
@@ -68,7 +70,9 @@ export class DraftService {
 
       return finalEmbedding;
     } catch (error) {
-      this.logger.error(`Error generating question embedding: ${error.message}`);
+      this.logger.error(
+        `Error generating question embedding: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -81,18 +85,22 @@ export class DraftService {
     questionEmbedding: number[],
     topK: number = 4,
   ): Promise<SimilarChunk[]> {
-    this.logger.log(`Searching for top-${topK} similar chunks for user ${userId}`);
+    this.logger.log(
+      `Searching for top-${topK} similar chunks for user ${userId}`,
+    );
 
     try {
       // Convert embedding array to PostgreSQL vector format
       const vectorArrayString = `[${questionEmbedding.join(',')}]`;
 
       // Use cosine distance (<=>) and convert to similarity (1 - distance)
-      const results = await this.prisma.$queryRawUnsafe<Array<{
-        id: string;
-        chunk_content: string;
-        similarity: number;
-      }>>(
+      const results = await this.prisma.$queryRawUnsafe<
+        Array<{
+          id: string;
+          chunk_content: string;
+          similarity: number;
+        }>
+      >(
         `SELECT 
           e.id,
           e.chunk_content,
@@ -209,7 +217,9 @@ ${question}
     questionItemId: string,
     chunks: SimilarChunk[],
   ): Promise<void> {
-    this.logger.log(`Saving ${chunks.length} citations for question ${questionItemId}`);
+    this.logger.log(
+      `Saving ${chunks.length} citations for question ${questionItemId}`,
+    );
 
     try {
       // Delete existing citations for this question
@@ -287,7 +297,10 @@ ${question}
         chunkContent: c.chunkContent,
         similarityScore: c.similarityScore,
       }));
-      const prompt = this.buildPrompt(questionItem.questionText, processedChunks);
+      const prompt = this.buildPrompt(
+        questionItem.questionText,
+        processedChunks,
+      );
 
       // Step 4: Generate answer
       const answer = await this.generateAnswer(prompt);
@@ -336,4 +349,3 @@ ${question}
     }
   }
 }
-

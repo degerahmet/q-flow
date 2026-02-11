@@ -1,8 +1,9 @@
 import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
-  ForbiddenException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -12,21 +13,25 @@ import {
   CreateProjectResponseDto,
   GetProjectDetailsResponseDto,
   GetProjectQuestionsResponseDto,
-  QuestionItemStatus,
-  ProjectStatusCountsDto,
+  GetReviewQueueResponseDto,
   ProjectStatus,
-  ReviewQueueResponseDto,
+  ProjectStatusCountsDto,
+  QuestionItemStatus,
   ReviewAction,
   ReviewActionResponseDto,
 } from '@qflow/api-types';
-import { QuestionItemStatus as PrismaQuestionItemStatus, ProjectStatus as PrismaProjectStatus } from '@qflow/db';
+import {
+  QuestionItemStatus as PrismaQuestionItemStatus,
+  ProjectStatus as PrismaProjectStatus,
+} from '@qflow/db';
 import { DraftQuestionsJob } from './draft.processor';
 
 @Injectable()
 export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue('draft-questions') private readonly draftQueue: Queue<DraftQuestionsJob>,
+    @InjectQueue('draft-questions')
+    private readonly draftQueue: Queue<DraftQuestionsJob>,
   ) {}
 
   async createFromQuestions(
@@ -86,9 +91,7 @@ export class ProjectsService {
 
     // Verify project belongs to user
     if (project.userId !== userId) {
-      throw new ForbiddenException(
-        'You do not have access to this project',
-      );
+      throw new ForbiddenException('You do not have access to this project');
     }
 
     // Get counts grouped by status
@@ -144,9 +147,7 @@ export class ProjectsService {
 
     // Verify project belongs to user
     if (project.userId !== userId) {
-      throw new ForbiddenException(
-        'You do not have access to this project',
-      );
+      throw new ForbiddenException('You do not have access to this project');
     }
 
     // Build where clause
@@ -188,14 +189,14 @@ export class ProjectsService {
 
     // Verify project belongs to user
     if (project.userId !== userId) {
-      throw new ForbiddenException(
-        'You do not have access to this project',
-      );
+      throw new ForbiddenException('You do not have access to this project');
     }
 
     // Check project status (must be PROCESSING or QUEUED)
-    if (project.status !== PrismaProjectStatus.PROCESSING && 
-        project.status !== PrismaProjectStatus.QUEUED) {
+    if (
+      project.status !== PrismaProjectStatus.PROCESSING &&
+      project.status !== PrismaProjectStatus.QUEUED
+    ) {
       throw new BadRequestException(
         `Project status must be PROCESSING or QUEUED, but is ${project.status}`,
       );
@@ -211,7 +212,7 @@ export class ProjectsService {
   async getReviewQueue(
     userId: string,
     projectId: string,
-  ): Promise<ReviewQueueResponseDto> {
+  ): Promise<GetReviewQueueResponseDto> {
     // Verify project exists
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -223,9 +224,7 @@ export class ProjectsService {
 
     // Verify project belongs to user
     if (project.userId !== userId) {
-      throw new ForbiddenException(
-        'You do not have access to this project',
-      );
+      throw new ForbiddenException('You do not have access to this project');
     }
 
     // Fetch question items with NEEDS_REVIEW status, including citations
@@ -250,10 +249,9 @@ export class ProjectsService {
         aiAnswer: item.aiAnswer,
         confidenceScore: item.confidenceScore,
         citations: item.answerCitations.map((citation) => ({
-          id: citation.id,
-          snippet: citation.snippet,
+          embeddingId: citation.embeddingId,
           score: citation.score,
-          createdAt: citation.createdAt,
+          snippet: citation.snippet,
         })),
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
@@ -280,9 +278,7 @@ export class ProjectsService {
 
     // Verify question belongs to user's project
     if (questionItem.project.userId !== userId) {
-      throw new ForbiddenException(
-        'You do not have access to this question',
-      );
+      throw new ForbiddenException('You do not have access to this question');
     }
 
     // Verify question is in NEEDS_REVIEW status
@@ -297,6 +293,12 @@ export class ProjectsService {
       throw new BadRequestException(
         'humanAnswer is required for EDIT_APPROVE action',
       );
+    }
+    if (
+      action === ReviewAction.APPROVE &&
+      (questionItem.aiAnswer == null || questionItem.aiAnswer.trim() === '')
+    ) {
+      throw new BadRequestException('Cannot APPROVE: aiAnswer is missing');
     }
 
     // Determine new status and update data
@@ -367,10 +369,7 @@ export class ProjectsService {
     };
   }
 
-  async checkReviewGate(
-    userId: string,
-    projectId: string,
-  ): Promise<boolean> {
+  async checkReviewGate(userId: string, projectId: string): Promise<boolean> {
     // Verify project exists
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -382,9 +381,7 @@ export class ProjectsService {
 
     // Verify project belongs to user
     if (project.userId !== userId) {
-      throw new ForbiddenException(
-        'You do not have access to this project',
-      );
+      throw new ForbiddenException('You do not have access to this project');
     }
 
     // Check if any NEEDS_REVIEW questions exist
@@ -397,5 +394,24 @@ export class ProjectsService {
 
     // Returns true if review gate is blocked (has NEEDS_REVIEW questions)
     return needsReviewCount > 0;
+  }
+
+  /**
+   * Validates that the project has no questions in NEEDS_REVIEW status.
+   * Call after verifying project ownership (e.g. before export).
+   * @throws ConflictException (409) if any questions need review
+   */
+  async validateProjectReadyForExport(projectId: string): Promise<void> {
+    const needsReviewCount = await this.prisma.questionItem.count({
+      where: {
+        projectId,
+        status: PrismaQuestionItemStatus.NEEDS_REVIEW,
+      },
+    });
+    if (needsReviewCount > 0) {
+      throw new ConflictException(
+        'Project has questions that need review; complete review before export',
+      );
+    }
   }
 }
